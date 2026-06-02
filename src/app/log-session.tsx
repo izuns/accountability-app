@@ -1,317 +1,363 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
-  TextInput,
-  Pressable,
-  Keyboard,
   ScrollView,
+  Pressable,
+  TextInput,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function LogWorkout() {
-  const { id, mode } = useLocalSearchParams();
-  const isEditing = mode === "edit";
+export default function LogSession() {
+  const [templates, setTemplates] = useState([]);
+  
+  // State for Templates
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [sessionExercises, setSessionExercises] = useState([]);
 
-  const [workoutName, setWorkoutName] = useState("");
-  const [groups, setGroups] = useState([]);
-  const [activeGroupIndex, setActiveGroupIndex] = useState(null);
+  // State for Custom Entries (Open form text boxes)
+  const [customEntries, setCustomEntries] = useState([]);
 
-  const [exerciseName, setExerciseName] = useState("");
-  const [numSets, setNumSets] = useState("");
-
-  const [editing, setEditing] = useState(null);
-  // { groupIndex, exerciseIndex }
+  // General Log Data
+  const [note, setNote] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [time, setTime] = useState(
+    new Date().toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    })
+  );
 
   useEffect(() => {
-    async function load() {
-      if (!isEditing || !id) return;
+    loadTemplates();
+  }, []);
 
-      const stored = await AsyncStorage.getItem("workouts");
-      const workouts = stored ? JSON.parse(stored) : [];
-
-      const found = workouts.find((w) => String(w.id) === String(id));
-      if (!found) return;
-
-      setWorkoutName(found.name || "");
-      setGroups(found.groups || []);
-    }
-
-    load();
-  }, [id, isEditing]);
-
-  function startGroup(type) {
-    setGroups((prev) => [
-      ...prev,
-      { type, exercises: [] },
-    ]);
-    setActiveGroupIndex(groups.length);
-  }
-
-  // 🔥 CORE CHANGE: per-set weight input stored in UI state
-  function updateSetWeight(groupIndex, exIndex, setIndex, value) {
-    setGroups((prev) => {
-      const updated = [...prev];
-
-      const setObj =
-        updated[groupIndex].exercises[exIndex].sets[setIndex];
-
-      setObj.weight = Number(value);
-
-      return updated;
-    });
-  }
-
-  function addOrUpdateExercise() {
-    if (!exerciseName.trim() || !numSets.trim()) return;
-
-    const setCount = Math.max(Number(numSets), 1);
-
-    const newSets = Array.from({ length: setCount }, (_, i) => ({
-      set: i + 1,
-      reps: 0,
-      weight: 0,
-    }));
-
-    setGroups((prev) => {
-      const updated = [...prev];
-
-      if (updated.length === 0) {
-        updated.push({ type: "single", exercises: [] });
-      }
-
-      const gi =
-        activeGroupIndex !== null ? activeGroupIndex : updated.length - 1;
-
-      const group = updated[gi];
-
-      let exercises = [...group.exercises];
-
-      // ✏️ EDIT MODE
-      if (editing) {
-        exercises[editing.exerciseIndex] = {
-          name: exerciseName,
-          sets: newSets,
-        };
-
-        updated[editing.groupIndex] = {
-          ...group,
-          exercises,
-        };
-
-        setEditing(null);
-        return updated;
-      }
-
-      // ➕ ADD MODE
-      const existingIndex = exercises.findIndex(
-        (ex) =>
-          ex.name.toLowerCase() === exerciseName.toLowerCase()
-      );
-
-      if (existingIndex >= 0) {
-        exercises[existingIndex] = {
-          ...exercises[existingIndex],
-          sets: [...exercises[existingIndex].sets, ...newSets],
-        };
-      } else {
-        exercises.push({
-          name: exerciseName,
-          sets: newSets,
-        });
-      }
-
-      updated[gi] = {
-        ...group,
-        exercises,
-      };
-
-      return updated;
-    });
-
-    setExerciseName("");
-    setNumSets("");
-  }
-
-  function editExercise(groupIndex, exerciseIndex) {
-    const ex = groups[groupIndex].exercises[exerciseIndex];
-
-    setExerciseName(ex.name);
-    setNumSets(String(ex.sets?.length || 1));
-
-    setActiveGroupIndex(groupIndex);
-    setEditing({ groupIndex, exerciseIndex });
-  }
-
-  function deleteExercise(groupIndex, exerciseIndex) {
-    setGroups((prev) => {
-      const updated = [...prev];
-      updated[groupIndex].exercises.splice(exerciseIndex, 1);
-      return updated;
-    });
-  }
-
-  async function saveWorkout() {
+  async function loadTemplates() {
     const stored = await AsyncStorage.getItem("workouts");
-    const workouts = stored ? JSON.parse(stored) : [];
+    const parsed = stored ? JSON.parse(stored) : [];
+    setTemplates(parsed);
+  }
 
-    if (isEditing && id) {
-      const updated = workouts.map((w) =>
-        String(w.id) === String(id)
-          ? { ...w, name: workoutName, groups }
-          : w
-      );
-
-      await AsyncStorage.setItem(
-        "workouts",
-        JSON.stringify(updated)
-      );
+  // --- Toggle Template Selection ---
+  function toggleTemplate(template) {
+    if (selectedTemplate?.id === template.id) {
+      setSelectedTemplate(null);
+      setSessionExercises([]);
     } else {
-      workouts.push({
-        id: Date.now(),
-        name: workoutName,
-        groups,
+      setSelectedTemplate(template);
+
+      const copiedExercises = [];
+      template.groups?.forEach((group) => {
+        group.exercises?.forEach((exercise) => {
+          copiedExercises.push({
+            name: exercise.name,
+            sets:
+              exercise.sets?.map((s) => ({
+                set: s.set,
+                reps: s.reps || "",
+                weight: "",
+              })) || [],
+          });
+        });
       });
 
-      await AsyncStorage.setItem(
-        "workouts",
-        JSON.stringify(workouts)
-      );
+      setSessionExercises(copiedExercises);
+    }
+  }
+
+  // --- Custom Entry Functions ---
+  function addCustomEntry() {
+    setCustomEntries((prev) => [...prev, ""]);
+  }
+
+  function updateCustomEntry(index, text) {
+    setCustomEntries((prev) => {
+      const updated = [...prev];
+      updated[index] = text;
+      return updated;
+    });
+  }
+
+  function removeCustomEntry(indexToRemove) {
+    setCustomEntries((prev) => prev.filter((_, index) => index !== indexToRemove));
+  }
+
+  // --- Update Template Sets ---
+  function updateSet(exIndex, setIndex, field, value) {
+    setSessionExercises((prev) => {
+      const updated = [...prev];
+      updated[exIndex].sets[setIndex] = {
+        ...updated[exIndex].sets[setIndex],
+        [field]: value,
+      };
+      return updated;
+    });
+  }
+
+  // --- Save Logic ---
+  async function saveSession() {
+    const hasCustom = customEntries.some(entry => entry.trim() !== "");
+    
+    if (!selectedTemplate && !hasCustom) {
+      alert("Please select a template or add a custom entry.");
+      return;
     }
 
+    const existing = await AsyncStorage.getItem("workoutSessions");
+    const sessions = existing ? JSON.parse(existing) : [];
+
+    let sessionName = "Custom Session";
+    if (selectedTemplate) {
+      sessionName = selectedTemplate.name;
+      if (hasCustom) sessionName += " + Custom";
+    }
+
+    sessions.unshift({
+      id: Date.now(),
+      templateName: sessionName,
+      date: `${date} ${time}`,
+      entries: [
+        ...sessionExercises,
+        ...customEntries
+          .filter((text) => text.trim() !== "")
+          .map((text) => ({ type: "customText", text })),
+        ...(note.trim() ? [{ type: "note", text: note }] : []),
+      ],
+    });
+
+    await AsyncStorage.setItem("workoutSessions", JSON.stringify(sessions));
+    alert("Session saved!");
     router.back();
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 24, gap: 12 }}>
-      <Text style={{ fontSize: 24, fontWeight: "bold" }}>
-        {isEditing ? "Edit Workout" : "Log Workout"}
-      </Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+      <ScrollView
+        contentContainerStyle={{
+          padding: 24,
+          gap: 16, 
+        }}
+        keyboardShouldPersistTaps="handled" // Helps dismiss keyboard when tapping outside inputs
+      >
+        {/* --- Header --- */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text style={{ fontSize: 24, fontWeight: "bold" }}>Log Session</Text>
+          <Pressable onPress={() => router.back()}>
+            <Text style={{ color: "#007BFF", fontWeight: "600", fontSize: 16 }}>Cancel</Text>
+          </Pressable>
+        </View>
 
-      {/* BACK BUTTON */}
-      <Pressable onPress={() => router.back()}>
-        <Text style={{ color: "#555" }}>← Back</Text>
-      </Pressable>
+        {/* --- Date & Time --- */}
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: "600", marginBottom: 4 }}>Date</Text>
+            <TextInput
+              value={date}
+              onChangeText={setDate}
+              style={{ borderWidth: 1, borderColor: "#ccc", padding: 10, borderRadius: 8 }}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: "600", marginBottom: 4 }}>Time</Text>
+            <TextInput
+              value={time}
+              onChangeText={setTime}
+              style={{ borderWidth: 1, borderColor: "#ccc", padding: 10, borderRadius: 8 }}
+            />
+          </View>
+        </View>
 
-      {/* WORKOUT NAME */}
-      <Text style={{ fontWeight: "600" }}>Workout Name</Text>
-      <TextInput
-        value={workoutName}
-        onChangeText={setWorkoutName}
-        style={{ borderWidth: 1, padding: 10, borderRadius: 8 }}
-      />
+        <View style={{ height: 1, backgroundColor: "#eee", marginVertical: 8 }} />
 
-      {/* GROUPS */}
-      <View style={{ flexDirection: "row", gap: 10 }}>
-        <Pressable onPress={() => startGroup("single")}>
-          <Text>+ Single</Text>
-        </Pressable>
+        {/* --- Templates Section --- */}
+        <Text style={{ fontWeight: "bold", fontSize: 18 }}>Templates</Text>
+        {templates.length === 0 && (
+          <Text style={{ color: "#666", fontStyle: "italic" }}>No templates saved.</Text>
+        )}
+        {templates.map((template) => (
+          <Pressable
+            key={template.id}
+            onPress={() => toggleTemplate(template)}
+            style={{
+              borderWidth: 1,
+              borderColor: selectedTemplate?.id === template.id ? "black" : "#ddd",
+              backgroundColor: selectedTemplate?.id === template.id ? "black" : "transparent",
+              padding: 12,
+              borderRadius: 10,
+            }}
+          >
+            <Text style={{ color: selectedTemplate?.id === template.id ? "white" : "black", fontWeight: "600" }}>
+              {template.name}
+            </Text>
+          </Pressable>
+        ))}
 
-        <Pressable onPress={() => startGroup("superset")}>
-          <Text>+ Superset</Text>
-        </Pressable>
-      </View>
-
-      {/* INPUTS */}
-      <Text style={{ fontWeight: "600" }}>Exercise Name</Text>
-      <TextInput
-        value={exerciseName}
-        onChangeText={setExerciseName}
-        style={{ borderWidth: 1, padding: 10 }}
-      />
-
-      <Text style={{ fontWeight: "600" }}>Number of Sets</Text>
-      <TextInput
-        value={numSets}
-        onChangeText={setNumSets}
-        keyboardType="numeric"
-        style={{ borderWidth: 1, padding: 10 }}
-      />
-
-      <Pressable onPress={addOrUpdateExercise}>
-        <Text style={{ fontWeight: "700" }}>
-          {editing ? "Update Exercise" : "Add Exercise"}
-        </Text>
-      </Pressable>
-
-      {/* PREVIEW */}
-      <View style={{ marginTop: 20 }}>
-        <Text style={{ fontSize: 18, fontWeight: "bold" }}>
-          Preview
-        </Text>
-
-        {groups.map((group, gi) => (
-          <View key={gi} style={{ marginTop: 10 }}>
-            <Text>
-              {group.type === "superset" ? "⚡ Superset" : "Single"}
+        {/* --- Template Exercises Section --- */}
+        {selectedTemplate && (
+          <View style={{ marginTop: 8 }}>
+            <Text style={{ fontSize: 16, fontWeight: "bold", marginBottom: 12 }}>
+              Template Exercises
             </Text>
 
-            {group.exercises.map((ex, ei) => (
-              <View key={ei} style={{ marginLeft: 10 }}>
-                <Text style={{ fontWeight: "600" }}>
-                  {ex.name}
+            {sessionExercises.map((exercise, exIndex) => (
+              <View
+                key={exIndex}
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#ddd",
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 12,
+                  backgroundColor: "#fafafa"
+                }}
+              >
+                <Text style={{ fontWeight: "bold", fontSize: 15, marginBottom: 12 }}>
+                  {exercise.name}
                 </Text>
 
-                {/* EACH SET HAS OWN WEIGHT */}
-                {ex.sets.map((s, si) => (
-                  <View key={si} style={{ marginLeft: 10 }}>
-                    <Text>
-                      Set {s.set}
-                    </Text>
+                <View style={{ flexDirection: "row", marginBottom: 8 }}>
+                  <Text style={{ flex: 1, fontWeight: "600", color: "#666" }}>Set</Text>
+                  <Text style={{ flex: 2, fontWeight: "600", color: "#666", marginLeft: 8 }}>Reps</Text>
+                  <Text style={{ flex: 2, fontWeight: "600", color: "#666", marginLeft: 8 }}>Weight</Text>
+                </View>
+
+                {exercise.sets.map((set, setIndex) => (
+                  <View
+                    key={setIndex}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Text style={{ flex: 1, fontWeight: "500" }}>{set.set}</Text>
 
                     <TextInput
-                      placeholder="reps"
-                      value={String(s.reps)}
-                      onChangeText={(v) => {
-                        const updated = [...groups];
-                        updated[gi].exercises[ei].sets[si].reps =
-                          Number(v);
-                        setGroups(updated);
+                      placeholder="Reps"
+                      value={String(set.reps)}
+                      onChangeText={(v) => updateSet(exIndex, setIndex, "reps", v)}
+                      keyboardType="numeric"
+                      style={{
+                        flex: 2,
+                        borderWidth: 1,
+                        borderColor: "#ccc",
+                        padding: 8,
+                        borderRadius: 8,
+                        marginLeft: 8,
+                        backgroundColor: "#fff"
                       }}
-                      style={{ borderWidth: 1, padding: 6 }}
                     />
 
                     <TextInput
-                      placeholder="weight"
-                      value={String(s.weight)}
-                      onChangeText={(v) =>
-                        updateSetWeight(gi, ei, si, v)
-                      }
-                      style={{ borderWidth: 1, padding: 6 }}
+                      placeholder="Lbs/Kg"
+                      value={String(set.weight)}
+                      onChangeText={(v) => updateSet(exIndex, setIndex, "weight", v)}
+                      keyboardType="numeric"
+                      style={{
+                        flex: 2,
+                        borderWidth: 1,
+                        borderColor: "#ccc",
+                        padding: 8,
+                        borderRadius: 8,
+                        marginLeft: 8,
+                        backgroundColor: "#fff"
+                      }}
                     />
                   </View>
                 ))}
-
-                {/* ACTIONS */}
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <Pressable onPress={() => editExercise(gi, ei)}>
-                    <Text style={{ color: "blue" }}>Edit</Text>
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => deleteExercise(gi, ei)}
-                  >
-                    <Text style={{ color: "red" }}>Delete</Text>
-                  </Pressable>
-                </View>
               </View>
             ))}
           </View>
-        ))}
-      </View>
+        )}
 
-      {/* SAVE */}
-      <Pressable
-        onPress={saveWorkout}
-        style={{
-          backgroundColor: "black",
-          padding: 14,
-          borderRadius: 10,
-        }}
-      >
-        <Text style={{ color: "white" }}>Save Workout</Text>
-      </Pressable>
-    </ScrollView>
+        <View style={{ height: 1, backgroundColor: "#eee", marginVertical: 8 }} />
+
+        {/* --- Custom Entries Section --- */}
+        <Text style={{ fontWeight: "bold", fontSize: 18 }}>Custom Entries</Text>
+        
+        {customEntries.map((entry, index) => (
+          <View key={index} style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", marginBottom: 4 }}>
+              <Pressable onPress={() => removeCustomEntry(index)}>
+                <Text style={{ color: "#FF3B30", fontWeight: "600", fontSize: 14 }}>
+                  Remove
+                </Text>
+              </Pressable>
+            </View>
+            
+            <TextInput
+              placeholder="E.g., 3x10 Pullups, 20 min core circuit..."
+              value={entry}
+              onChangeText={(text) => updateCustomEntry(index, text)}
+              multiline
+              style={{
+                borderWidth: 1,
+                borderColor: "#ccc",
+                padding: 12,
+                borderRadius: 8,
+                minHeight: 80,
+                backgroundColor: "#fff",
+                textAlignVertical: "top" // Ensures placeholder starts at top on Android
+              }}
+            />
+          </View>
+        ))}
+
+        <Pressable
+          onPress={addCustomEntry}
+          style={{
+            borderWidth: 1,
+            borderColor: "#007BFF",
+            backgroundColor: "#E3F2FD",
+            padding: 12,
+            borderRadius: 10,
+            alignItems: "center"
+          }}
+        >
+          <Text style={{ color: "#007BFF", fontWeight: "600" }}>
+            + Add Custom Entry
+          </Text>
+        </Pressable>
+
+        <View style={{ height: 1, backgroundColor: "#eee", marginVertical: 8 }} />
+
+        {/* --- Notes Section --- */}
+        <Text style={{ fontWeight: "bold", fontSize: 18 }}>Overall Session Notes</Text>
+        <TextInput
+          placeholder="Felt great today, right shoulder a bit tight..."
+          value={note}
+          onChangeText={setNote}
+          multiline
+          style={{
+            borderWidth: 1,
+            borderColor: "#ccc",
+            padding: 12,
+            borderRadius: 8,
+            minHeight: 80,
+            textAlignVertical: "top"
+          }}
+        />
+
+        {/* --- Save Button --- */}
+        <Pressable
+          onPress={saveSession}
+          style={{
+            backgroundColor: "black",
+            padding: 16,
+            borderRadius: 10,
+            alignItems: "center",
+            marginTop: 12,
+            marginBottom: 32, // Extra padding at bottom for easier scrolling
+          }}
+        >
+          <Text style={{ color: "white", fontWeight: "bold", fontSize: 16 }}>
+            Save Session
+          </Text>
+        </Pressable>
+
+      </ScrollView>
+    </SafeAreaView>
   );
 }
