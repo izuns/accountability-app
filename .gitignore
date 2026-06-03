@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+git add .
+git commit -m "Save current progress: Log app with Supabase cloud sync"

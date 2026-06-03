@@ -4,11 +4,11 @@ import {
   Text,
   TextInput,
   Pressable,
-  Keyboard,
   ScrollView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function LogWorkout() {
   const { id, mode } = useLocalSearchParams();
@@ -184,108 +184,157 @@ export default function LogWorkout() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 24, gap: 12 }}>
-      <Text style={{ fontSize: 24, fontWeight: "bold" }}>
-        {isEditing ? "Edit Workout" : "Log Workout"}
-      </Text>
-
-      <TextInput
-        placeholder="Workout name"
-        value={workoutName}
-        onChangeText={setWorkoutName}
-        style={{ borderWidth: 1, padding: 12, borderRadius: 8 }}
-      />
-
-      {/* GROUPS */}
-      <View style={{ flexDirection: "row", gap: 10 }}>
-        <Pressable onPress={() => startNewGroup("single")}>
-          <Text>+ Single</Text>
-        </Pressable>
-
-        <Pressable onPress={() => startNewGroup("superset")}>
-          <Text>+ Superset</Text>
-        </Pressable>
-      </View>
-
-      {/* INPUTS */}
-      <TextInput
-        placeholder="Exercise"
-        value={exerciseName}
-        onChangeText={setExerciseName}
-        style={{ borderWidth: 1, padding: 12, borderRadius: 8 }}
-      />
-
-      <TextInput
-        placeholder="Reps"
-        value={reps}
-        onChangeText={setReps}
-        keyboardType="numeric"
-        style={{ borderWidth: 1, padding: 12, borderRadius: 8 }}
-      />
-
-      <TextInput
-        placeholder="Sets"
-        value={numSets}
-        onChangeText={setNumSets}
-        keyboardType="numeric"
-        style={{ borderWidth: 1, padding: 12, borderRadius: 8 }}
-      />
-
-      <Pressable onPress={addOrUpdateExercise}>
-        <Text style={{ fontWeight: "bold" }}>
-          {editingExercise ? "Update Exercise" : "Add Exercise"}
-        </Text>
-      </Pressable>
-
-      {/* PREVIEW */}
-      <View style={{ marginTop: 20 }}>
-        <Text style={{ fontSize: 18, fontWeight: "bold" }}>
-          Preview
-        </Text>
-
-        {groups.map((group, gi) => (
-          <View key={gi}>
-            <Text>{group.type}</Text>
-
-            {group.exercises.map((ex, ei) => (
-              <View key={ei} style={{ marginLeft: 10 }}>
-                <Text>{ex.name}</Text>
-
-                {ex.sets.map((s, si) => (
-                  <Text key={si}>
-                    Set {s.set}: {s.reps}
-                  </Text>
-                ))}
-
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <Pressable onPress={() => editExercise(gi, ei)}>
-                    <Text style={{ color: "blue" }}>Edit</Text>
-                  </Pressable>
-
-                  <Pressable onPress={() => deleteExercise(gi, ei)}>
-                    <Text style={{ color: "red" }}>Delete</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ))}
-          </View>
-        ))}
-      </View>
-
-      <Pressable
-        onPress={saveWorkout}
-        style={{
-          backgroundColor: "black",
-          padding: 14,
-          borderRadius: 10,
-        }}
+    <SafeAreaView style={{ flex: 1, backgroundColor: "white" }}>
+      <ScrollView 
+        contentContainerStyle={{ padding: 24, gap: 12 }}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text style={{ color: "white" }}>Save Workout</Text>
-      </Pressable>
+        <Text style={{ fontSize: 24, fontWeight: "bold", marginBottom: 8 }}>
+          {isEditing ? "Edit Workout" : "Template Creator"}
+        </Text>
 
-      <Pressable onPress={() => router.back()}>
-        <Text style={{ textAlign: "center" }}>Back</Text>
-      </Pressable>
-    </ScrollView>
+        <View>
+          <Text style={{ fontWeight: "600", marginBottom: 4 }}>Workout Name</Text>
+          <TextInput
+            placeholder="e.g., Pull Day, Full Body"
+            value={workoutName}
+            onChangeText={setWorkoutName}
+            style={{ borderWidth: 1, borderColor: "#ccc", padding: 12, borderRadius: 8 }}
+          />
+        </View>
+
+        <View style={{ height: 1, backgroundColor: "#eee", marginVertical: 8 }} />
+
+        {/* GROUPS */}
+        <Text style={{ fontWeight: "600", marginBottom: -4 }}>Add Structure</Text>
+        <View style={{ flexDirection: "row", gap: 10, marginBottom: 8 }}>
+          <Pressable 
+            onPress={() => startNewGroup("single")}
+            style={{ padding: 8, backgroundColor: "#f0f0f0", borderRadius: 8 }}
+          >
+            <Text style={{ fontWeight: "500" }}>+ Standard Exercise</Text>
+          </Pressable>
+
+          <Pressable 
+            onPress={() => startNewGroup("superset")}
+            style={{ padding: 8, backgroundColor: "#fff3cd", borderRadius: 8, borderWidth: 1, borderColor: "#ffe69c" }}
+          >
+            <Text style={{ fontWeight: "500", color: "#856404" }}>+ Superset Group</Text>
+          </Pressable>
+        </View>
+
+        {/* INPUTS WITH LABELS AND NEW ORDER */}
+        <View>
+          <Text style={{ fontWeight: "600", marginBottom: 4 }}>Exercise Name</Text>
+          <TextInput
+            placeholder="e.g., Barbell Squat"
+            value={exerciseName}
+            onChangeText={setExerciseName}
+            style={{ borderWidth: 1, borderColor: "#ccc", padding: 12, borderRadius: 8 }}
+          />
+        </View>
+
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: "600", marginBottom: 4 }}>Sets</Text>
+            <TextInput
+              placeholder="e.g., 3"
+              value={numSets}
+              onChangeText={setNumSets}
+              keyboardType="numeric"
+              style={{ borderWidth: 1, borderColor: "#ccc", padding: 12, borderRadius: 8 }}
+            />
+          </View>
+          
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: "600", marginBottom: 4 }}>Reps</Text>
+            <TextInput
+              placeholder="e.g., 10"
+              value={reps}
+              onChangeText={setReps}
+              keyboardType="numeric"
+              style={{ borderWidth: 1, borderColor: "#ccc", padding: 12, borderRadius: 8 }}
+            />
+          </View>
+        </View>
+
+        <Pressable 
+          onPress={addOrUpdateExercise}
+          style={{
+            backgroundColor: "#007BFF",
+            padding: 14,
+            borderRadius: 8,
+            alignItems: "center",
+            marginTop: 4
+          }}
+        >
+          <Text style={{ fontWeight: "bold", color: "white" }}>
+            {editingExercise ? "Update Exercise" : "Add Exercise to Template"}
+          </Text>
+        </Pressable>
+
+        <View style={{ height: 1, backgroundColor: "#eee", marginVertical: 8 }} />
+
+        {/* PREVIEW */}
+        <View style={{ marginTop: 8 }}>
+          <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 12 }}>
+            Template Preview
+          </Text>
+
+          {groups.length === 0 && (
+            <Text style={{ color: "#666", fontStyle: "italic" }}>
+              Add exercises above to build your template.
+            </Text>
+          )}
+
+          {groups.map((group, gi) => (
+            <View key={gi} style={{ marginBottom: 16, backgroundColor: "#fafafa", padding: 12, borderRadius: 8, borderWidth: 1, borderColor: "#eee" }}>
+              <Text style={{ fontWeight: "bold", color: group.type === "superset" ? "#d97706" : "#333", marginBottom: 8 }}>
+                {group.type === "superset" ? "⚡ Superset" : "Standard"}
+              </Text>
+
+              {group.exercises.map((ex, ei) => (
+                <View key={ei} style={{ marginLeft: 10, marginBottom: 8, borderLeftWidth: 2, borderLeftColor: "#ddd", paddingLeft: 10 }}>
+                  <Text style={{ fontWeight: "600", fontSize: 16 }}>{ex.name}</Text>
+
+                  {ex.sets.map((s, si) => (
+                    <Text key={si} style={{ color: "#555" }}>
+                      Set {s.set}: {s.reps} reps
+                    </Text>
+                  ))}
+
+                  <View style={{ flexDirection: "row", gap: 16, marginTop: 6 }}>
+                    <Pressable onPress={() => editExercise(gi, ei)}>
+                      <Text style={{ color: "#007BFF", fontWeight: "500" }}>Edit</Text>
+                    </Pressable>
+
+                    <Pressable onPress={() => deleteExercise(gi, ei)}>
+                      <Text style={{ color: "#FF3B30", fontWeight: "500" }}>Delete</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+
+        <Pressable
+          onPress={saveWorkout}
+          style={{
+            backgroundColor: "black",
+            padding: 16,
+            borderRadius: 10,
+            alignItems: "center",
+            marginTop: 12
+          }}
+        >
+          <Text style={{ color: "white", fontWeight: "bold", fontSize: 16 }}>Save Template</Text>
+        </Pressable>
+
+        <Pressable onPress={() => router.back()} style={{ padding: 12 }}>
+          <Text style={{ textAlign: "center", color: "#555", fontWeight: "600" }}>Cancel</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
